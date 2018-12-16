@@ -11,6 +11,9 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 from threading import Thread
 from Tkinter import *
 
+import chrometrexrush.main
+
+
 # use ggplot style for more sophisticated visuals
 plt.style.use('ggplot')
 
@@ -31,7 +34,11 @@ class cruncher:
         self.mean_ar = np.concatenate((self.mean_ar[1:self.len], [self.avg()]))
 
     def avg(self):
-        return self.ar[self.len-self.avlen:].mean()
+        windowed = self.ar[self.len-self.avlen:]
+        d = np.diff(windowed)
+        res = np.sum(np.abs(d)) / self.avlen
+        return res
+
     
     def set_an(self,an):
         if an < self.len:
@@ -63,25 +70,33 @@ class cruncher:
 cr = cruncher(500,an=10,min=0, max=750)
 
 master = Tk()
-thrsh = Scale(master, from_=0, to=1000,resolution = 0, length = 1000, orient=HORIZONTAL, label='Threshold')
-thrsh.set(500)
-thrsh.pack()
+thrshpos = Scale(master, from_=0, to=1000,resolution = 0, length = 1000, orient=HORIZONTAL, label='Threshold +')
+thrshpos.set(150)
+thrshpos.pack()
+
+thrshneg = Scale(master, from_=0, to=1000,resolution = 0, length = 1000, orient=HORIZONTAL, label='Threshold -')
+thrshneg.set(20)
+thrshneg.pack()
 
 timout = Scale(master, from_=0, to=5000,resolution = 1, length = 1000, orient=HORIZONTAL, label='Timeout')
-timout.set(200)
+timout.set(300)
 timout.pack()
 
-avlen = Scale(master, from_=0, to=500,resolution = 1, length = 1000, orient=HORIZONTAL, label='Average window len')
-avlen.set(200)
+avlen = Scale(master, from_=0, to=500,resolution = 1, length = 1000, orient=HORIZONTAL, label='Singal window len')
+avlen.set(13)
 avlen.pack()
 
 keyboard = Controller()
 
 run = True
+
+
+
 def serial_runner():
     t = time.time()
     lastprint = time.time()
     lasttrig = time.time()
+    has_relaxed = False
     with serial.Serial('/dev/ttyUSB0',115200, timeout=1) as ser:
         print(ser.name)
         while run:
@@ -91,9 +106,9 @@ def serial_runner():
             dt = (nt-t)*1000
             t = nt
 
-            if time.time() - lastprint > 1:
-                print("l: %s, dt: %.3f ms" %(l,dt))
-                lastprint = time.time()
+            #if time.time() - lastprint > 1:
+            #    print("l: %s, dt: %.3f ms" %(l,dt))
+            #    lastprint = time.time()
 
             if l is not None:
                 try:
@@ -106,13 +121,20 @@ def serial_runner():
 
             cr.set_an(avlen.get())
 
+            avg = cr.avg()
+            chrometrexrush.main.update_stress(avg/thrshpos.get())
+            chrometrexrush.main.update_activated(has_relaxed)
+
             if (time.time()-lasttrig)*1000 > timout.get():
-                if cr.avg() > thrsh.get():
-                    lasttrig = time.time()
-                    print("TRIGGER")
-                    keyboard.press(Key.space)
-                    time.sleep(0.001)
-                    keyboard.release(Key.space)
+                if avg < thrshneg.get():
+                    #print("Has relaxed.")
+                    has_relaxed = True
+
+                if has_relaxed and avg > thrshpos.get():
+                        lasttrig = time.time()
+                        print("TRIGGER")
+                        has_relaxed = False
+                        chrometrexrush.main.press_spacebar()
 
 
 
@@ -123,6 +145,9 @@ thrd_ser.start()
 
 thrd = Thread(target=cr.live_plotter, args=())
 thrd.start()
+
+thrdTrex = Thread(target=chrometrexrush.main.main, args=())
+thrdTrex.start()
 
 mainloop()
 
