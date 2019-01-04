@@ -12,6 +12,7 @@ scr_size = (width, height) = (1200, 300)
 FPS = 50
 gravity = 0.35
 
+# Added settings for SmartGYM
 CACTI_PER_SET = 10
 PAUSE_AFTER_SET = 10*FPS # in sec
 
@@ -33,6 +34,7 @@ checkPoint_sound = pygame.mixer.Sound('sprites/checkPoint.wav')
 spacebar_pressed = False
 stress = 0
 activated = True
+trex_run = True
 
 def press_spacebar():
     global spacebar_pressed
@@ -45,6 +47,10 @@ def update_stress(s):
 def update_activated(a):
     global activated
     activated = a
+
+def end_game():
+    global trex_run
+    trex_run = False
 
 def load_image(
         name,
@@ -362,9 +368,15 @@ def introscreen():
     logo, logo_rect = load_image('logo.png', 240, 40, -1)
     logo_rect.centerx = width * 0.6
     logo_rect.centery = height * 0.6
+
+    global trex_run
+
     while not gameStart:
         if pygame.display.get_surface() == None:
             print("Couldn't load display surface")
+            return True
+        elif not trex_run:
+            print("[TREX] ending game")
             return True
         else:
             for event in pygame.event.get():
@@ -402,6 +414,7 @@ def introscreen():
 
 def gameplay():
     global high_score
+    global trex_run
     gamespeed = 4
     startMenu = False
     gameOver = False
@@ -444,6 +457,10 @@ def gameplay():
         while not gameOver:
             if pygame.display.get_surface() == None:
                 print("Couldn't load display surface")
+                gameQuit = True
+                gameOver = True
+            elif not trex_run:
+                print("[TREX] Stopping game")
                 gameQuit = True
                 gameOver = True
             else:
